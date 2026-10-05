@@ -13,8 +13,16 @@ The `tapo` Python/Rust library (verified through tag v0.9.0) implements only
 that protocol end-to-end and has been proven live against a P115(US) plug and
 an L930-5(US) light strip.
 
-Single self-contained file (`tpap_proto.py`). No Tapo cloud API involved — it
-talks straight to the device on your LAN.
+No Tapo cloud API involved — it talks straight to the device on your LAN.
+
+## What's in here
+
+| File | Purpose |
+|------|---------|
+| `tpap_proto.py` | The raw protocol client (self-contained, any method) |
+| `strip_effects.py` | High-level L920/L930 helper: presets, per-segment rainbow/gradient |
+| `presets.py` | Catalog of all 55 built-in strip effects (device-side IDs, verified) |
+| `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
 
 ## When you need this
 
@@ -58,7 +66,7 @@ Python 3.10+ with three wheels:
 pip install -r requirements.txt
 ```
 
-## Usage
+## Usage: raw client
 
 Credentials are passed as environment variables — never hardcode them:
 
@@ -88,19 +96,88 @@ python tpap_proto.py get_current_power
 python tpap_proto.py set_device_info \
   '{"device_on":true,"brightness":100,"hue":25,"saturation":100,"color_temp":0}'
 
-# Read back
-python tpap_proto.py get_device_info
+# Run a built-in strip effect (id from presets.py)
+python tpap_proto.py apply_segment_effect_rule \
+  '{"brightness":50,"custom":0,"display_colors":[[20,87,100,0],[20,87,100,0],[20,87,100,0]],"enable":1,"id":"TapoStrip_6dJUyTqdQb69WMTtYfmhXp","name":"volcano"}'
 ```
+
+## Usage: strip helper (L920 / L930)
+
+`strip_effects.py` wraps the raw client with a single authenticated session
+per run (no re-auth per call) and verified effect shapes:
+
+```bash
+PY=/path/to/tapo_env/bin/python   # a python with requests/cryptography/ecdsa
+
+$PY strip_effects.py list                          # the 55 built-in presets
+$PY strip_effects.py preset halloween              # run a named preset
+$PY strip_effects.py preset candlelight --brightness 70
+$PY strip_effects.py rainbow                       # 50-segment full rainbow
+$PY strip_effects.py gradient --from 100 --to 25 --bands 8   # green->orange
+$PY strip_effects.py solid --hue 25 --sat 100 --bri 100      # plain orange
+```
+
+### Built-in presets
+
+`presets.py` carries all 55 app-defined effect templates with their
+device-side IDs (e.g. `TapoStrip_...`), parsed from the `tapo` crate source
+and verified live on an L930-5(US): `siren`, `fireworks`, `volcano`, `star`,
+`candlelight`, `halloween`, `disco`, `dancing`, `electro_dance`, `bonfire`,
+`dreamland`, `universe`, `movie`, `game`, `forest`, `snow`, and 40 more —
+see `strip_effects.py list`.
+
+Presets use `custom: 0` (the device looks them up by ID). Colors in
+`display_colors` are `[hue, saturation, brightness, 0]`, hue 0–360.
+
+## Per-segment "color painting" (the L930's real superpower)
+
+The L930/L920 strips have **50 addressable segments** and accept custom
+per-segment effects via `apply_segment_effect_rule` with `custom: 1`.
+Verified device rules (L930-5 US, fw 1.4.3):
+
+- **`segments` must be cumulative band-end indices** — e.g. 5 even bands over
+  50 segments → `[9, 19, 29, 39, 49]`; full resolution (one color per
+  segment) → `[0, 1, …, 49]`. Passing a single count (e.g. `[300]`) is
+  rejected.
+- **`display_colors` must have ≤ 4 entries** — 5 or more returns
+  **`error_code -1008 PARAMS`** (the "PARAMS" error; the device gives no more
+  detail).
+- **`states`** is one `[hue, sat, bri, 0]` per band.
+- **Use a fixed `id`** (e.g. `TapoStrip_screensync`): the device then updates
+  colors **in place with no restart/blink**. A fresh id each call re-creates
+  the effect and produces a visible flash.
+- Effect type `none` = static custom painting. (`chasing`/`breathe` etc.
+  exist but the static path is what per-segment rendering needs.)
+
+```python
+import strip_effects
+st = strip_effects.Strip()
+# one color per segment: full rainbow
+st.rainbow()
+# or manual:
+ends = [9, 19, 29, 39, 49]                    # 5 even bands
+states = [[100,100,90,0],[60,100,90,0],
+          [25,100,90,0],[25,100,90,0],[25,100,90,0]]
+st.custom("my-scene", 90, ends, states)
+```
+
+**Performance ceiling:** each update is one encrypted round-trip (~200 ms on
+LAN), so the practical rate is **~4–5 updates/sec** regardless of payload
+size. Smooth flowing gradients are not achievable on this hardware;
+calm, slowly-changing ambient content (screen-sync ambilight, GPU-state
+gradients) works beautifully.
 
 ## Method names are snake_case
 
 TPAP methods are **snake_case**: `get_device_info`, `get_device_usage`,
-`get_current_power`, `set_device_info`. Using camelCase
-(`getDeviceInfo`) returns `error_code -1002`.
+`get_current_power`, `set_device_info`, `apply_segment_effect_rule`,
+`set_lighting_effect`. Using camelCase (`getDeviceInfo`) returns
+`error_code -1002`. (Bug fix 2026-10-05: the raw client's no-arg default was
+`getDeviceInfo`, which fails — it now defaults to `get_device_info`.)
 
-## Color strips (L920 / L930): use flat `set_device_info` params
+## Flat `set_device_info` params (color bulbs & strips)
 
-For RGB/RGBIC strips, set color with `set_device_info` and a **flat** param
+For RGB/RGBIC devices, set color with `set_device_info` and a **flat** param
 object — the same shape the `tapo` Rust builder
 (`ColorLightSetDeviceInfoParams`) serializes:
 
@@ -127,6 +204,12 @@ any active lighting effect.
   `tr -d '\11\12\15\40-\176' | wc -c` (non-printing chars = 0).
   **Each failed `pake_share` consumes one of the device's limited login
   attempts**, so get the bytes right before retrying.
+
+- **`error_code -1008 PARAMS` on `apply_segment_effect_rule`**: wrong
+  payload shape — check the cumulative `segments` indices and the ≤4
+  `display_colors` cap above.
+
+- **`error_code -1002`**: camelCase method name; use snake_case.
 
 - **`FORBIDDEN` from the normal `tapo`/`tapo-mcp` path**: device-side
   protocol gap (TPAP), not a container or network bug. Use this client.
@@ -161,18 +244,17 @@ any active lighting effect.
    each request. Response `rseq` is in the first 4 bytes; decrypt with the
    response's `rseq`.
 
-The full, field-by-field protocol is documented in the `tapo-mcp-operations`
-skill's `references/tpap-implementation.md`; this file is the runnable
-reference.
-
 ## Upstream
 
 This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
-## Files
+## Changelog
 
-| File | Purpose |
-|------|---------|
-| `tpap_proto.py` | The reference client (self-contained) |
-| `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
+- **2026-10-05**: fixed the raw client's no-arg default method
+  (`getDeviceInfo` → `get_device_info`; the old default fails with -1002).
+  Added `strip_effects.py` (single-session helper) and `presets.py` (all 55
+  built-in strip effects with verified device-side IDs). Documented the
+  per-segment "color painting" protocol: 50 segments, cumulative band-end
+  indices, ≤4 display colors (-1008), fixed id for blink-free in-place
+  updates, ~4–5 updates/sec ceiling.

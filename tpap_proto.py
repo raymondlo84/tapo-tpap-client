@@ -298,7 +298,8 @@ def main():
     pw = os.environ.get("TPAP_PASS", "")
     port = int(os.environ.get("TPAP_PORT", "80"))
     tls = os.environ.get("TPAP_TLS", "0") == "1"
-    method = sys.argv[1] if len(sys.argv) > 1 else "getDeviceInfo"
+    # TPAP method names are snake_case; camelCase returns error_code -1002.
+    method = sys.argv[1] if len(sys.argv) > 1 else "get_device_info"
     params = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
 
     c = Tapap(host, user, pw, port=port, tls=tls)
