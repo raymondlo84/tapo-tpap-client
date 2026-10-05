@@ -11,7 +11,11 @@ Brightness is capped at a peak (default 20%) so the pulse is a soft, dim
 glow rather than a harsh flash. One beat every ~1.2 s (~50 BPM).
 Runs until killed; --ticks N limits it. Leaves the strip dim on stop.
 
-Same TPAP_* env vars as tpap_proto.py; run with the tapo venv python.
+Credentials: TPAP_USER / TPAP_PASS env vars, falling back to the
+TAPO_MCP_USERNAME / TAPO_MCP_PASSWORD lines of
+~/.openclaw/settings/tapo-mcp.env (what the tapo-mcp container uses).
+Host vars (TPAP_HOST/PORT/TLS) come from the environment.
+Run with the tapo venv python.
 """
 import argparse
 import math
@@ -48,6 +52,23 @@ def _env(name, default=None):
     return v
 
 
+CRED_FILE = "/home/nvidia/.openclaw/settings/tapo-mcp.env"
+
+
+def _cred(env_name, file_key):
+    """Credential from env var, falling back to the tapo-mcp env file."""
+    v = os.environ.get(env_name)
+    if v:
+        return v
+    try:
+        for line in open(CRED_FILE):
+            if line.startswith(file_key + "="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    raise SystemExit(f"missing credential: set {env_name} or {CRED_FILE}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ticks", type=int, default=0,
@@ -60,10 +81,10 @@ def main():
 
     _kw = {
         "host": _env("TPAP_HOST"),
-        "username": _env("TPAP_USER"),
+        "username": _cred("TPAP_USER", "TAPO_MCP_USERNAME"),
         "port": int(_env("TPAP_PORT", "80")),
         "tls": _env("TPAP_TLS", "0") == "1",
-        "pass" "word": _env("TPAP_PASS"),
+        "pass" "word": _cred("TPAP_PASS", "TAPO_MCP_PASSWORD"),
     }
     s = tpap_proto.Tapap(**_kw)
     s.discover()

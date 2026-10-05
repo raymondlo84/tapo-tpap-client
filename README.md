@@ -138,6 +138,41 @@ $PY demos/spiral_pattern.py       # --hue 100  --tail 8  --ticks 100
 
 They work from any cwd (they locate `tpap_proto.py` relative to the repo).
 
+For a **persistent** ambient (survives reboots and is independent of any
+shell), run a demo under systemd the same way `nvidia-light` does, e.g.:
+
+```ini
+# ~/.config/systemd/user/strip-heartbeat.service
+[Unit]
+Description=L930 strip heartbeat - smooth red lub-dub ambient
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=TPAP_HOST=device-ip
+Environment=TPAP_PORT=80
+Environment=TPAP_TLS=0
+ExecStart=<venv-python> <repo>/demos/heartbeat_pattern.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+```
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now strip-heartbeat
+journalctl --user -u strip-heartbeat -f   # watch it
+```
+
+Credentials: `TPAP_USER`/`TPAP_PASS` env vars, falling back to the
+`TAPO_MCP_USERNAME`/`TAPO_MCP_PASSWORD` lines of
+`~/.openclaw/settings/tapo-mcp.env` (the same file tapo-mcp uses).
+
 ### Built-in presets
 
 `presets.py` carries all 55 app-defined effect templates with their
@@ -274,6 +309,11 @@ This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
+
+- **2026-10-05**: ambient demos can now run as systemd user services
+  (persistent, restart-on-failure); `demos/heartbeat_pattern.py` picks up
+  Tapo credentials from the tapo-mcp env file when `TPAP_USER`/`TPAP_PASS`
+  are not set.
 
 - **2026-10-05**: reorganized: ambient demo scripts moved into `demos/`
   (`heartbeat_pattern.py`, `spiral_pattern.py`); their imports now work from
