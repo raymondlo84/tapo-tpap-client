@@ -26,6 +26,7 @@ No Tapo cloud API involved — it talks straight to the device on your LAN.
 | `demos/spiral_pattern.py` | Ambient demo: a comet chasing around a coil-wound strip |
 | `coil/calibrate_markers.py` | Webcam calibration: maps all 50 segments to 2-D pixel positions |
 | `coil/draw.py` | Constellation drawing engine: draws real pictures with the coil |
+| `coil/align_clock.py` | Detects the hand-written 12/6 marks so the clock face matches the coil |
 | `coil/coil_clock.py` | Persistent real-time clock: hour/minute/second hands on the spiral |
 | `coil/media/` | Verified photos + GIFs of every pattern |
 | `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
@@ -203,11 +204,41 @@ true clock angle, so resolution is the LED spacing (~±10 min on the minute
 hand — that is the resolution of a 50-LED clock). It pushes only when the lit
 set changes (a few times per minute), well under the ~6 updates/sec ceiling.
 
-Live, service-driven photo (hands at the actual wall-clock time):
+Live, service-driven photo (hands at the actual wall-clock time, coil propped
+face-on and aligned to the hand-written **12** and **6** marks — here it
+reads 4:12, so the minute dot sits at ~1 o'clock and the hour dot at ~4):
 
 | Live coil clock |
 |---|
-| <img src="coil/media/clock_service.jpg" alt="real-time coil clock" width="70%"> |
+| <img src="coil/media/clock_live.jpg" alt="real-time coil clock" width="70%"> |
+
+### Aligning the clock to the physical 12
+
+The clock face only matches the reel if the software knows where **12
+o'clock** is on it. Write "12" and "6" on the coil (they should sit on a
+diameter), then:
+
+```bash
+$PY coil/align_clock.py        # dark frame -> detects both marks -> clock_ref.npy
+```
+
+It takes the midpoint of the two marks as the disc center and the vector to
+the "12" mark as the 12-o'clock direction (averaging the two angles is
+unstable at ~180 deg separation, so it doesn't). `coil_clock.py` reads
+`clock_ref.npy` and uses the mark-based center for its geometry. Re-run it
+after moving the coil or the camera.
+
+**Calibration gotchas** (both hit on this setup, both fixed):
+
+1. A bright **window behind** the coil also reads as a big bright low-sat
+   region, so any "detect the disc" heuristic picks up the window. The
+   cyan marker is *high*-saturation, so a hue+saturation filter with a
+   blob-size cap is the robust path (the disc mask was dropped).
+2. A few missed segments (occlusion/reflection) leave NaN rows in
+   `segmap.npy`; `np.max()` propagates NaN through the whole normalization
+   and silently wipes every mask. Both `coil_clock.py` and `draw.py`
+   therefore normalize over the valid rows only, and `nearest()` just gets
+   a few fewer candidates.
 
 Run it persistently as a systemd user service (survives reboots, restarts on
 crash, re-authenticates on error):
@@ -432,6 +463,14 @@ This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
+
+- **2026-10-05**: re-oriented the coil (now propped face-on like a clock
+  dial) and re-aligned: re-ran `calibrate_markers.py` (44/50 points; the
+  disc-masking heuristic was dropped because a bright window behind the
+  coil defeated it - the cyan marker's high saturation is the robust
+  filter), added `align_clock.py` which reads the hand-written 12/6 marks
+  to set the clock face orientation (`clock_ref.npy`), and made
+  `coil_clock.py`/`draw.py` tolerate missed (NaN) calibration points.
 
 - **2026-10-05**: added `coil/coil_clock.py` — a persistent real-time clock on
   the coil (hub + blue hour hand + green minute hand + amber second marker,

@@ -32,11 +32,31 @@ SEG = 50
 EFFECT_ID = "TapoStrip_coilclock"
 
 seg = np.load(os.path.join(HERE, "segmap.npy"))
-CX, CY = seg.mean(axis=0)
-RAD = np.hypot(seg[:, 0] - CX, seg[:, 1] - CY).max()
+# A few segments can be missed by calibration (occlusion/reflection) and stay
+# NaN; normalize over the valid points so one miss doesn't NaN-poison the map.
+_c = seg[~np.isnan(seg[:, 0])] if not np.isnan(seg[:, 0]).all() else seg
+CX, CY = _c.mean(axis=0)
+RAD = np.hypot(_c[:, 0] - CX, _c[:, 1] - CY).max()
 UV = np.stack([(seg[:, 0] - CX) / RAD, (seg[:, 1] - CY) / RAD], axis=1)
 THETA = np.arctan2(UV[:, 1], UV[:, 0])
 R = np.hypot(UV[:, 0], UV[:, 1])
+
+# Physical 12-o'clock reference: written by coil/align_clock.py as
+# [A12_rad, center_x, center_y] where A12 is the image angle (radians) of
+# the user's hand-written "12" mark and the center is the midpoint of the
+# 12/6 marks (the true disc center; the segmap centroid is biased by missed
+# segments). Falls back to "straight up on screen" + segmap centroid when
+# absent. Run align_clock.py after moving the coil or the camera, or the
+# clock face will be rotated off.
+_REF = os.path.join(HERE, "clock_ref.npy")
+if os.path.exists(_REF):
+    _ref = np.load(_REF)
+    if _ref.ndim == 0:  # old format: just the angle
+        _ref = np.array([float(_ref), CX, CY])
+    A12 = float(_ref[0])
+    CX, CY = float(_ref[1]), float(_ref[2])
+else:
+    A12 = -math.pi / 2
 
 HUB = R < 0.17
 HOUR = (R >= 0.17) & (R < 0.62)
@@ -61,9 +81,9 @@ def clock_states(now=None):
     now = now or time.localtime()
     minute = now.tm_min + now.tm_sec / 60.0
     hour = (now.tm_hour % 12) + minute / 60.0
-    a_s = now.tm_sec / 60.0 * 2 * math.pi - math.pi / 2
-    a_m = minute / 60.0 * 2 * math.pi - math.pi / 2
-    a_h = hour / 12.0 * 2 * math.pi - math.pi / 2
+    a_s = A12 + now.tm_sec / 60.0 * 2 * math.pi
+    a_m = A12 + minute / 60.0 * 2 * math.pi
+    a_h = A12 + hour / 12.0 * 2 * math.pi
     states = [[0, 0, 3, 0]] * SEG
     for k in np.where(HUB)[0]:
         states[k] = [0, 0, 100, 0]

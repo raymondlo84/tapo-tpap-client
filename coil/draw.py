@@ -41,8 +41,10 @@ import tpap_proto  # noqa: E402
 EFFECT_ID = "TapoStrip_draw"
 
 seg = np.load(os.path.join(HERE, "segmap.npy"))
-CX, CY = seg.mean(axis=0)
-RAD = np.hypot(seg[:, 0] - CX, seg[:, 1] - CY).max()   # normalize by outer radius
+# Tolerate a few missed (NaN) calibration points: normalize over valid rows.
+_c = seg[~np.isnan(seg[:, 0])] if not np.isnan(seg[:, 0]).all() else seg
+CX, CY = _c.mean(axis=0)
+RAD = np.hypot(_c[:, 0] - CX, _c[:, 1] - CY).max()   # normalize by outer radius
 UV = np.stack([(seg[:, 0] - CX) / RAD, (seg[:, 1] - CY) / RAD], axis=1)
 THETA = np.arctan2(UV[:, 1], UV[:, 0])                 # segment angles
 R_NORM = np.hypot(UV[:, 0], UV[:, 1])                  # 0..1 normalized radius

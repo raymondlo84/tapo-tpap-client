@@ -29,9 +29,10 @@ import tpap_proto  # noqa: E402
 
 SEG = 50
 CAM = "fswebcam -d /dev/video0 -r 1280x720 -S --no-banner"
-ROI = (470, 110, 890, 545)      # x0,y0,x1,y1 box interior margin
+ROI = (380, 120, 880, 620)     # x0,y0,x1,y1 coil extent (upright face-on view); window excluded by saturation filter
 MARKER = [180, 100, 100, 0]    # cyan: hue far from the red box glow
 EFFECT_ID = "TapoStrip_calib"
+MAX_BLOB = 8000                # bigger than one LED = reflection, discard
 
 
 def _hsv(arr):
@@ -51,7 +52,23 @@ def _hsv(arr):
     return h, s, v
 
 
+def disc_mask(arr):
+    """Bright, low-saturation diffuser region = the coil disc."""
+    h, s, v = _hsv(arr)
+    x0, y0, x1, y1 = ROI
+    m = (v > 0.45) & (s < 0.30)
+    m[:y0, :] = False
+    m[y1:, :] = False
+    m[:, :x0] = False
+    m[:, x1:] = False
+    return m
+
+
 def extract_marker(path):
+    """Bright cyan blob centroid. Hue+saturation filter alone is robust to the
+    bright window behind the coil (window is low-saturation; the cyan marker is
+    high-saturation), so no disc/annulus masking is needed. A size cap drops
+    window reflections that happen to read as a big cyan-ish region."""
     im = np.asarray(Image.open(path).convert("RGB"), dtype=np.float32) / 255.0
     h, s, v = _hsv(im)
     x0, y0, x1, y1 = ROI
@@ -62,6 +79,8 @@ def extract_marker(path):
     m[:, x1:] = False
     ys, xs = np.where(m)
     if xs.size < 30:
+        return None
+    if xs.size > MAX_BLOB:   # reflection, not a single LED
         return None
     w = v[ys, xs] ** 2
     return float(np.sum(xs * w) / np.sum(w)), float(np.sum(ys * w) / np.sum(w)), int(xs.size)
