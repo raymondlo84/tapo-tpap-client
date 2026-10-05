@@ -22,6 +22,7 @@ No Tapo cloud API involved — it talks straight to the device on your LAN.
 | `tpap_proto.py` | The raw protocol client (self-contained, any method) |
 | `strip_effects.py` | High-level L920/L930 helper: presets, per-segment rainbow/gradient |
 | `presets.py` | Catalog of all 55 built-in strip effects (device-side IDs, verified) |
+| `spiral_pattern.py` | Ambient demo: a comet chasing around a coil-wound strip |
 | `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
 
 ## When you need this
@@ -250,6 +251,9 @@ This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
+
+- **2026-10-05**: added `spiral_pattern.py` (comet-chase demo for coil-wound
+  strips, verified live).
 
 - **2026-10-05**: fixed the raw client's no-arg default method
   (`getDeviceInfo` → `get_device_info`; the old default fails with -1002).
