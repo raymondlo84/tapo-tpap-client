@@ -26,6 +26,7 @@ No Tapo cloud API involved — it talks straight to the device on your LAN.
 | `demos/spiral_pattern.py` | Ambient demo: a comet chasing around a coil-wound strip |
 | `coil/calibrate_markers.py` | Webcam calibration: maps all 50 segments to 2-D pixel positions |
 | `coil/draw.py` | Constellation drawing engine: draws real pictures with the coil |
+| `coil/coil_clock.py` | Persistent real-time clock: hour/minute/second hands on the spiral |
 | `coil/media/` | Verified photos + GIFs of every pattern |
 | `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
 
@@ -192,6 +193,55 @@ $PY coil/draw.py off                 # dim everything
 Shapes are defined in normalized coil space (u,v ≈ −1…1, v down), so new
 pictures are just a mask/circle function over the measured points — e.g. a
 clock, an orbit, or text rendered with the segments.
+
+### Real-time clock (`coil/coil_clock.py`)
+
+The coil makes a surprisingly good **persistent clock**: bright hub at the
+center, blue hour hand (inner windings), green minute hand (outer 55%), and
+an amber second marker on the outer ring. Each hand is the nearest LED to the
+true clock angle, so resolution is the LED spacing (~±10 min on the minute
+hand — that is the resolution of a 50-LED clock). It pushes only when the lit
+set changes (a few times per minute), well under the ~6 updates/sec ceiling.
+
+Live, service-driven photo (hands at the actual wall-clock time):
+
+| Live coil clock |
+|---|
+| <img src="coil/media/clock_service.jpg" alt="real-time coil clock" width="70%"> |
+
+Run it persistently as a systemd user service (survives reboots, restarts on
+crash, re-authenticates on error):
+
+```bash
+cat > ~/.config/systemd/user/coil-clock.service <<'EOF'
+[Unit]
+Description=L930 coil real-time clock (hour/minute/second hands on the spiral)
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Environment=TPAP_HOST=device-ip
+Environment=TPAP_PORT=80
+Environment=TPAP_TLS=0
+ExecStart=<venv-python> <repo>/coil/coil_clock.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+EOF
+systemctl --user daemon-reload
+systemctl --user enable --now coil-clock
+journalctl --user -u coil-clock -f    # watch it push
+```
+
+`coil_clock.py` reads `TPAP_USER`/`TPAP_PASS` from the environment, falling
+back to the `TAPO_MCP_USERNAME`/`TAPO_MCP_PASSWORD` lines of
+`~/.openclaw/settings/tapo-mcp.env` (same as the ambient demos).
+`python coil/coil_clock.py off` dims the strip and exits.
 
 ## Ambient demos (`demos/`)
 
@@ -382,6 +432,11 @@ This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
+
+- **2026-10-05**: added `coil/coil_clock.py` — a persistent real-time clock on
+  the coil (hub + blue hour hand + green minute hand + amber second marker,
+  push-on-change pacing, re-auth on error), verified live against the wall
+  clock and running as `coil-clock.service` (systemd user service).
 
 - **2026-10-05**: added `coil/` — webcam-driven constellation demos for a
   coil-wound L930. `calibrate_markers.py` maps all 50 segments to pixel
