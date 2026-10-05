@@ -22,8 +22,8 @@ No Tapo cloud API involved — it talks straight to the device on your LAN.
 | `tpap_proto.py` | The raw protocol client (self-contained, any method) |
 | `strip_effects.py` | High-level L920/L930 helper: presets, per-segment rainbow/gradient |
 | `presets.py` | Catalog of all 55 built-in strip effects (device-side IDs, verified) |
-| `spiral_pattern.py` | Ambient demo: a comet chasing around a coil-wound strip |
-| `heartbeat_pattern.py` | Ambient demo: a red "lub-dub" heartbeat pulse (great coil-wound) |
+| `demos/heartbeat_pattern.py` | Ambient demo: a smooth "lub-dub" heartbeat pulse (default 20% peak) |
+| `demos/spiral_pattern.py` | Ambient demo: a comet chasing around a coil-wound strip |
 | `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
 
 ## When you need this
@@ -79,6 +79,7 @@ export TPAP_TLS=0                # from discovery tpap.tls (1 = TLS)
 export TPAP_USER=<tapo account email>
 export TPAP_PASS=<tapo account password>
 
+# run from the repo root (the client reads no other modules)
 python tpap_proto.py [method [json_params]]
 ```
 
@@ -118,6 +119,24 @@ $PY strip_effects.py rainbow                       # 50-segment full rainbow
 $PY strip_effects.py gradient --from 100 --to 25 --bands 8   # green->orange
 $PY strip_effects.py solid --hue 25 --sat 100 --bri 100      # plain orange
 ```
+
+## Ambient demos (`demos/`)
+
+Self-contained demo scripts for the L930 (best when the strip is wound in a
+spiral/coil). Each runs until killed, then leaves the strip dim:
+
+```bash
+PY=/path/to/tapo_env/bin/python   # a python with requests/cryptography/ecdsa
+
+# smooth "lub-dub" heartbeat, 6fps, peak 20% (time-locked pacing; the wire
+# ceiling is ~6 updates/sec because each frame is one encrypted round-trip)
+$PY demos/heartbeat_pattern.py    # --peak 40  --hue 100  --ticks 300
+
+# comet chasing around the coil, one revolution ~10s
+$PY demos/spiral_pattern.py       # --hue 100  --tail 8  --ticks 100
+```
+
+They work from any cwd (they locate `tpap_proto.py` relative to the repo).
 
 ### Built-in presets
 
@@ -163,9 +182,12 @@ states = [[100,100,90,0],[60,100,90,0],
 st.custom("my-scene", 90, ends, states)
 ```
 
-**Performance ceiling:** each update is one encrypted round-trip (~200 ms on
-LAN), so the practical rate is **~4–5 updates/sec** regardless of payload
-size. Smooth flowing gradients are not achievable on this hardware;
+**Performance ceiling:** each update is one encrypted round-trip (measured
+155–200 ms on LAN; 1-band whole-strip payloads are fastest), so the
+practical rate is **~5–6 updates/sec** with time-locked pacing. Smooth
+flowing gradients are not achievable on this hardware; calm,
+slowly-changing ambient content (screen-sync ambilight, GPU-state
+gradients, the `demos/`) works beautifully. Smooth flowing gradients are not achievable on this hardware;
 calm, slowly-changing ambient content (screen-sync ambilight, GPU-state
 gradients) works beautifully.
 
@@ -252,6 +274,11 @@ This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
+
+- **2026-10-05**: reorganized: ambient demo scripts moved into `demos/`
+  (`heartbeat_pattern.py`, `spiral_pattern.py`); their imports now work from
+  any cwd. Heartbeat got smooth time-locked 6fps pacing, 1-band payloads,
+  and a 20%-brightness peak (measured: ~155 ms 1-band round-trip).
 
 - **2026-10-05**: added `heartbeat_pattern.py` (lub-dub pulse, verified
   live) and `spiral_pattern.py` (comet-chase demo; both verified live on a
