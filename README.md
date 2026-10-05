@@ -24,6 +24,9 @@ No Tapo cloud API involved — it talks straight to the device on your LAN.
 | `presets.py` | Catalog of all 55 built-in strip effects (device-side IDs, verified) |
 | `demos/heartbeat_pattern.py` | Ambient demo: a smooth "lub-dub" heartbeat pulse (default 20% peak) |
 | `demos/spiral_pattern.py` | Ambient demo: a comet chasing around a coil-wound strip |
+| `coil/calibrate_markers.py` | Webcam calibration: maps all 50 segments to 2-D pixel positions |
+| `coil/draw.py` | Constellation drawing engine: draws real pictures with the coil |
+| `coil/media/` | Verified photos + GIFs of every pattern |
 | `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
 
 ## When you need this
@@ -119,6 +122,76 @@ $PY strip_effects.py rainbow                       # 50-segment full rainbow
 $PY strip_effects.py gradient --from 100 --to 25 --bands 8   # green->orange
 $PY strip_effects.py solid --hue 25 --sat 100 --bri 100      # plain orange
 ```
+
+## Constellation demos (`coil/`) — drawing pictures with a coil-wound strip
+
+Because the strip is wound into a spiral inside a box, its 50 segments form a
+2-D **constellation** of points. `coil/` maps that constellation with a webcam
+and then *draws* with it: any shape is rasterized in image space and the
+segments that fall inside it are lit — so the coil renders real pictures,
+verified by photographing the result.
+
+**Calibration** (`coil/calibrate_markers.py`, ~2 min one-off): for each of the
+50 segments it lights *only that segment* bright cyan, snaps a webcam photo,
+and records the blob centroid. The box glows red from the strip, so a unique
+cyan marker against a dark coil is unambiguous (no hue-binning, no model of
+the coil shape). Output: `segmap.npy` (50×2) + an overlay you can sanity-check:
+
+| Calibration overlay — 50 detected points, strip order traced in yellow |
+|---|
+| <img src="coil/media/segmap_overlay.jpg" alt="50-segment calibration overlay" width="70%"> |
+
+The strip order spirals inward in ~15 turns, so each winding holds only 3–4
+points. Polar-native patterns (rings, spokes, wedges) therefore read best;
+freeform 2-D shapes are honest 50-LED constellations.
+
+### Static patterns
+
+| heart | star | smiley | bolt |
+|---|---|---|---|
+| <img src="coil/media/demo_heart.jpg" width="300"> | <img src="coil/media/demo_star.jpg" width="300"> | <img src="coil/media/demo_smiley.jpg" width="300"> | <img src="coil/media/demo_bolt.jpg" width="300"> |
+
+| compass spokes | target rings | pac-man |
+|---|---|---|
+| <img src="coil/media/demo_spokes.jpg" width="320"> | <img src="coil/media/demo_target.jpg" width="320"> | <img src="coil/media/demo_pacman.jpg" width="320"> |
+
+### Animations
+
+The strip's segment order *is* the spiral path, so anything that animates
+along it looks like a comet winding through the coil. Captured via the
+webcam at 12 frames:
+
+| 🐍 snake — rainbow comet chasing the spiral | 📡 radar — green beam sweeping around |
+|---|---|
+| <img src="coil/media/small_snake.gif" width="400"> | <img src="coil/media/small_radar.gif" width="400"> |
+
+| 🪐 planet — body + fading trail orbiting a middle winding | 🕐 clock — real hour hand + sweeping minute hand + hub |
+|---|---|
+| <img src="coil/media/small_planet.gif" width="400"> | <img src="coil/media/small_clock.gif" width="400"> |
+
+(+ `twinkle` — random starfield shimmer.)
+
+### Running it yourself
+
+```bash
+PY=/path/to/tapo_env/bin/python   # a python with requests/cryptography/ecdsa/numpy/Pillow
+export TPAP_HOST=device-ip TPAP_PORT=80 TPAP_TLS=0
+export TPAP_USER=<tapo email> TPAP_PASS=<tapo password>
+
+# one-off webcam calibration (camera pointed at the coil; CAM device + ROI
+# in the script are tuned to the original angle — adjust for your setup)
+$PY coil/calibrate_markers.py
+
+# then draw (from the repo root)
+$PY coil/draw.py static              # all four freeform shapes + photos
+$PY coil/draw.py show pacman         # push one static shape, leave it
+$PY coil/draw.py anim snake          # 12-frame GIF of an animation
+$PY coil/draw.py off                 # dim everything
+```
+
+Shapes are defined in normalized coil space (u,v ≈ −1…1, v down), so new
+pictures are just a mask/circle function over the measured points — e.g. a
+clock, an orbit, or text rendered with the segments.
 
 ## Ambient demos (`demos/`)
 
@@ -309,6 +382,14 @@ This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
+
+- **2026-10-05**: added `coil/` — webcam-driven constellation demos for a
+  coil-wound L930. `calibrate_markers.py` maps all 50 segments to pixel
+  positions (single-cyan-marker + webcam, verified 50/50); `draw.py` rasterizes
+  shapes in image space and lights the segments that fall inside. Seven static
+  patterns (heart, star, smiley, bolt, spokes, target, pac-man) and five
+  animations (snake, radar, twinkle, planet, clock), each verified by photo/GIF
+  in `coil/media/`.
 
 - **2026-10-05**: ambient demos can now run as systemd user services
   (persistent, restart-on-failure); `demos/heartbeat_pattern.py` picks up
