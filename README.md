@@ -23,6 +23,7 @@ No Tapo cloud API involved — it talks straight to the device on your LAN.
 | `strip_effects.py` | High-level L920/L930 helper: presets, per-segment rainbow/gradient |
 | `presets.py` | Catalog of all 55 built-in strip effects (device-side IDs, verified) |
 | `spiral_pattern.py` | Ambient demo: a comet chasing around a coil-wound strip |
+| `heartbeat_pattern.py` | Ambient demo: a red "lub-dub" heartbeat pulse (great coil-wound) |
 | `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
 
 ## When you need this
@@ -252,8 +253,9 @@ in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
 
-- **2026-10-05**: added `spiral_pattern.py` (comet-chase demo for coil-wound
-  strips, verified live).
+- **2026-10-05**: added `heartbeat_pattern.py` (lub-dub pulse, verified
+  live) and `spiral_pattern.py` (comet-chase demo; both verified live on a
+  coil-wound strip).
 
 - **2026-10-05**: fixed the raw client's no-arg default method
   (`getDeviceInfo` → `get_device_info`; the old default fails with -1002).
