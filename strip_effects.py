@@ -14,7 +14,7 @@ the client deps (requests, cryptography, ecdsa) — i.e. your tapo venv:
 Credentials come from the TPAP_* environment variables (same as tpap_proto.py).
 
 Usage examples:
-    export TPAP_HOST=device-ip TPAP_PORT=80 TPAP_TLS=0
+    export TPAP_HOST=<strip-ip> TPAP_PORT=80 TPAP_TLS=0
     export TPAP_USER=<email> TPAP_PASS=<password>
     PY=/path/to/tapo_env/bin/python     # python with requests/cryptography/ecdsa
 

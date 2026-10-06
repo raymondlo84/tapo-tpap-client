@@ -8,7 +8,7 @@ limits the number of ticks (one revolution = 50 ticks).
 
 Same TPAP_* env vars as tpap_proto.py; run with the tapo venv python.
 
-    export TPAP_HOST=device-ip TPAP_PORT=80 TPAP_TLS=0
+    export TPAP_HOST=<strip-ip> TPAP_PORT=80 TPAP_TLS=0
     export TPAP_USER=<email> TPAP_PASS=<password>
     /home/nvidia/build-a-claw/tapo_env/bin/python spiral_pattern.py
 """

@@ -16,7 +16,7 @@ For the protocol/client itself, see [README.md](README.md).
 | Host | NVIDIA DGX Spark (GB10, Grace Blackwell, 12.1, unified 128 GB) |
 | OS | Ubuntu 24.04.5 LTS, arm64 |
 | OpenClaw | **2026.9.4** (commit `3a9d69d`), Node v24.21.0 |
-| Primary model | `vllm/unsloth/Qwen3.8-27B-NVFP4` — vLLM **0.28.0** on a second Spark over Tailscale (`tailnet-ip:8000/v1`), 256k context, 16k max output, reasoning + tool calls |
+| Primary model | `vllm/unsloth/Qwen3.8-27B-NVFP4` — vLLM **0.28.0** on a second Spark over Tailscale (`<tailnet-ip>:8000/v1`, the second Spark's Tailscale address), 256k context, 16k max output, reasoning + tool calls |
 | Local fallback model | `vllm2/nvidia/Qwen3.6-35B-A3B-NVFP4` — vLLM on the same Spark at `127.0.0.1:8000/v1` |
 | Embeddings (memory search) | Ollama `nomic-embed-text` |
 | Python (this repo) | 3.12 venv with `requests`, `cryptography`, `ecdsa` (see `requirements.txt`) |
@@ -47,7 +47,7 @@ active model id (`vllm/<model>`). On this host:
 ```jsonc
 "models": {
   "providers": {
-    "vllm":  { "baseUrl": "http://tailnet-ip:8000/v1", "api": "openai-completions",
+    "vllm":  { "baseUrl": "http://<tailnet-ip>:8000/v1", "api": "openai-completions",
                "models": [{ "id": "unsloth/Qwen3.8-27B-NVFP4", "reasoning": true,
                             "input": ["text","image"], "contextWindow": 256000, "maxTokens": 16000 }] },
     "vllm2": { "baseUrl": "http://127.0.0.1:8000/v1", "api": "openai-completions",

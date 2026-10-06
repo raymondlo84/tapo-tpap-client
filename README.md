@@ -66,7 +66,7 @@ import asyncio
 from tapo import ApiClient
 
 async def main():
-    d = await ApiClient.discover_devices_raw("<LAN broadcast, e.g. lan-broadcast>", 10)
+    d = await ApiClient.discover_devices_raw("<LAN broadcast, e.g. the broadcast address of your LAN>", 10)
     async for r in d:
         v = r.get()
         m = v.message["result"]
@@ -104,7 +104,7 @@ pip install -r requirements.txt
 Credentials are passed as environment variables — never hardcode them:
 
 ```bash
-export TPAP_HOST=device-ip        # device IP
+export TPAP_HOST=<device-ip>   # the strip's LAN IP
 export TPAP_PORT=80              # from discovery tpap.port (plain HTTP)
 export TPAP_TLS=0                # from discovery tpap.tls (1 = TLS)
 export TPAP_USER=<tapo account email>
@@ -203,7 +203,7 @@ webcam at 12 frames:
 
 ```bash
 PY=/path/to/tapo_env/bin/python   # a python with requests/cryptography/ecdsa/numpy/Pillow
-export TPAP_HOST=device-ip TPAP_PORT=80 TPAP_TLS=0
+export TPAP_HOST=<device-ip> TPAP_PORT=80 TPAP_TLS=0
 export TPAP_USER=<tapo email> TPAP_PASS=<tapo password>
 
 # one-off webcam calibration (camera pointed at the coil; CAM device + ROI
@@ -278,7 +278,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-Environment=TPAP_HOST=device-ip
+Environment=TPAP_HOST=<device-ip>
 Environment=TPAP_PORT=80
 Environment=TPAP_TLS=0
 ExecStart=<venv-python> <repo>/coil/coil_clock.py
@@ -330,7 +330,7 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-Environment=TPAP_HOST=device-ip
+Environment=TPAP_HOST=<device-ip>
 Environment=TPAP_PORT=80
 Environment=TPAP_TLS=0
 ExecStart=<venv-python> <repo>/demos/heartbeat_pattern.py

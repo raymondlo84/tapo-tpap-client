@@ -1,7 +1,7 @@
 """TPAP SPAKE2+ protocol prototype, derived from the tapo-rv30-ha reference.
 
-Target: P115(US) at device-ip — plain HTTP on port 80 (tls:0), pake:[2] = userpw.
-Usage: TPAP_HOST=device-ip TPAP_USER=... TPAP_PASS=... python tpap_proto.py [method [json_params]]
+Target: P115(US) - plain HTTP on port 80 (tls:0), pake:[2] = userpw.
+Usage: TPAP_HOST=<strip-ip> TPAP_USER=... TPAP_PASS=... python tpap_proto.py [method [json_params]]
 """
 import base64
 import hashlib
@@ -293,7 +293,9 @@ class Tapap:
 
 
 def main():
-    host = os.environ.get("TPAP_HOST", "device-ip")
+    host = os.environ.get("TPAP_HOST", "")
+    if not host:
+        raise SystemExit("TPAP_HOST is required - the device IP from discovery, e.g. TPAP_HOST=<strip-ip>")
     user = os.environ.get("TPAP_USER", "")
     pw = os.environ.get("TPAP_PASS", "")
     port = int(os.environ.get("TPAP_PORT", "80"))
