@@ -5,8 +5,15 @@ Renders the actual local time on the strip:
   - bright hub at the coil center
   - blue hour hand  (inner windings)
   - green minute hand (outer 55%)
-  - amber second marker (outer ring, steps to the nearest LED each second)
+  - amber second marker (outer windings, steps to the nearest LED each second)
   - dim floor everywhere else for contrast
+
+Hands are collision-aware: the LED bands overlap (the strip is a spiral), so
+when two hands target the same LED the lower-priority hand takes the next
+nearest free LED instead of clobbering the brighter one. There is no
+distance cutoff: the windings have angular gaps, so a cutoff would make a
+hand vanish part of the day (it was ~17% for the second hand) — a hand can
+be up to ~22deg off its true angle but is never missing.
 
 Because the 50 LEDs lie along a ~15-turn spiral, each hand is the single
 LED nearest the true clock angle (quantization ~ +/-10 min on the minute
@@ -61,20 +68,35 @@ else:
 HUB = R < 0.17
 HOUR = (R >= 0.17) & (R < 0.62)
 MINUTE = R >= 0.45
-SECONDS = R > 0.72
+# Second hand: the outermost winding has only ~10 LEDs (max 109deg gap),
+# so it is widened inward to the 0.58 ring (21 LEDs, 44deg max gap) - the
+# second marker is still clearly the outermost hand but can no longer fall
+# into a dead zone where no outer LED is nearby.
+SECONDS = R > 0.58
 
 
 def ang_diff(a, b):
     return abs((a - b + math.pi) % (2 * math.pi) - math.pi)
 
 
-def nearest(mask, angle, w=0.45):
+def nearest_free(mask, angle, taken):
+    """Nearest free LED in `mask` to `angle`.
+
+    No distance cutoff: the spiral windings have angular gaps (up to ~44deg
+    even in the densest band), so a cutoff made a hand vanish when its true
+    angle fell in a gap. Being a bit off is fine; being missing is not.
+    `taken` = segments reserved by higher-priority hands, so hands never
+    clobber each other on the overlapping bands - they spread out instead.
+    """
     idx = np.where(mask)[0]
     if idx.size == 0:
         return None
-    d = np.array([ang_diff(THETA[k], angle) for k in idx])
-    k = int(idx[int(np.argmin(d))])
-    return k if float(d.min()) < w else None
+    order = sorted(((ang_diff(THETA[k], angle), int(k)) for k in idx),
+                   key=lambda z: z[0])
+    for d, k in order:
+        if k not in taken:
+            return k
+    return None
 
 
 def clock_states(now=None):
@@ -87,15 +109,21 @@ def clock_states(now=None):
     states = [[0, 0, 3, 0]] * SEG
     for k in np.where(HUB)[0]:
         states[k] = [0, 0, 100, 0]
-    k = nearest(HOUR, a_h)
-    if k is not None:
-        states[k] = [200, 100, 100, 0]
-    k = nearest(MINUTE, a_m)
+    # Minute first (primary read), then second, then hour: on a collision
+    # the later hand takes the next nearest free LED, so all three stay
+    # visible even when their angles coincide (e.g. :00).
+    taken = set()
+    k = nearest_free(MINUTE, a_m, taken)
     if k is not None:
         states[k] = [120, 100, 100, 0]
-    k = nearest(SECONDS, a_s)
+        taken.add(k)
+    k = nearest_free(SECONDS, a_s, taken)
     if k is not None:
         states[k] = [35, 100, 100, 0]
+        taken.add(k)
+    k = nearest_free(HOUR, a_h, taken)
+    if k is not None:
+        states[k] = [200, 100, 100, 0]
     return states
 
 

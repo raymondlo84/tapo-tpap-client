@@ -210,7 +210,7 @@ reads 4:12, so the minute dot sits at ~1 o'clock and the hour dot at ~4):
 
 | Live coil clock |
 |---|
-| <img src="coil/media/clock_live.jpg" alt="real-time coil clock" width="70%"> |
+| <img src="coil/media/clock_hands.jpg" alt="real-time coil clock" width="70%"> |
 
 ### Aligning the clock to the physical 12
 
@@ -463,6 +463,18 @@ This closes the local-control gap for TPAP devices pending upstream support
 in the `tapo` crate (see mihai-dinculescu/tapo issue #657).
 
 ## Changelog
+
+- **2026-10-06**: fixed disappearing clock hands. Two geometry bugs, not
+  rounding: (1) `nearest()` had a 25.8deg distance cutoff, but the spiral
+  windings have angular gaps up to 109deg in the outer ring, so the second
+  hand fell into a dead zone and vanished ~17% of the day; (2) the hand
+  bands overlap, so when two hands targeted the same LED the write order
+  (hour then minute then second) let the dim second clobber the bright
+  minute. Fix: no distance cutoff (a hand is at worst ~22deg off, never
+  missing), the second band widened to R>0.58 (21 LEDs, 44deg max gap),
+  and collision-aware placement - each hand takes the nearest *free* LED
+  (minute first, then second, then hour), so all three stay visible even
+  at :00. Verified: full-day simulation, 0 missing hands, 0 collisions.
 
 - **2026-10-05**: re-oriented the coil (now propped face-on like a clock
   dial) and re-aligned: re-ran `calibrate_markers.py` (44/50 points; the
