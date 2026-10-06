@@ -15,6 +15,21 @@ an L930-5(US) light strip.
 
 No Tapo cloud API involved — it talks straight to the device on your LAN.
 
+## Contents
+
+- [What's in here](#whats-in-here)
+- [When you need this](#when-you-need-this) — is your device TPAP?
+- [Install](#install)
+- [Usage: raw client](#usage-raw-client)
+- [Usage: strip helper (L920 / L930)](#usage-strip-helper-l920--l930)
+- [Constellation demos (`coil/`)](#constellation-demos-coil--drawing-pictures-with-a-coil-wound-strip) — pictures + real-time clock
+- [Ambient demos (`demos/`)](#ambient-demos-demos)
+- [Per-segment "color painting"](#per-segment-color-painting-the-l930s-real-superpower)
+- [Protocol reference](#method-names-are-snake_case) — snake_case, flat params, wire protocol
+- [Troubleshooting](#troubleshooting)
+- [Upstream](#upstream) · [Changelog](#changelog)
+- [SETUP.md](SETUP.md) — the build environment (OpenClaw version, models, hardware)
+
 ## What's in here
 
 | File | Purpose |
@@ -30,6 +45,7 @@ No Tapo cloud API involved — it talks straight to the device on your LAN.
 | `coil/coil_clock.py` | Persistent real-time clock: hour/minute/second hands on the spiral |
 | `coil/media/` | Verified photos + GIFs of every pattern |
 | `requirements.txt` | `requests`, `cryptography`, `ecdsa` |
+| `SETUP.md` | The build environment (OpenClaw version, models, vLLM wiring) — for repeating the setup |
 
 ## When you need this
 
@@ -65,56 +81,15 @@ A `TPAP` row with `tpap_preferred: True` and a `tpap` dict (`port`, `tls`,
 `pake`) is a device this client can drive. `KLAP`/`AES` rows are the normal
 case and don't need it.
 
-## The setup this was built on (to repeat it)
+## How this was built
 
-Everything in this repo was developed, driven, and verified by an OpenClaw
-agent (**homeBot**) on an **NVIDIA DGX Spark** — not written by hand. If you
-want the same end-to-end setup (agent drives the strip over TPAP, calibrates
-it with the webcam, runs the ambient services, documents it here), this is
-the exact stack that produced it:
-
-| Layer | Version / value |
-|---|---|
-| Host | NVIDIA DGX Spark (GB10, Grace Blackwell, 12.1, unified 128 GB) |
-| OS | Ubuntu 24.04.5 LTS, arm64 |
-| OpenClaw | **2026.9.4** (commit `3a9d69d`), Node v24.21.0 |
-| Primary model | `vllm/unsloth/Qwen3.8-27B-NVFP4` — vLLM **0.28.0** on a second Spark over Tailscale (`tailnet-ip:8000/v1`), 256k context, 16k max output, reasoning + tool calls |
-| Local fallback model | `vllm2/nvidia/Qwen3.6-35B-A3B-NVFP4` — vLLM on the same Spark at `127.0.0.1:8000/v1` |
-| Embeddings (memory search) | Ollama `nomic-embed-text` |
-| Python (this repo) | 3.12 venv with `requests`, `cryptography`, `ecdsa` (see `requirements.txt`) |
-
-Local vLLM serve command (the `vllm2` fallback, for reference):
-
-```bash
-vllm serve nvidia/Qwen3.6-35B-A3B-NVFP4 \
-  --moe-backend flashinfer_b12x --enable-auto-tool-choice \
-  --tool-call-parser qwen3_coder --reasoning-parser qwen3 \
-  --host 127.0.0.1 --port 8000 --tensor-parallel-size 1 \
-  --trust-remote-code --kv-cache-dtype fp8 --attention-backend flashinfer \
-  --gpu-memory-utilization 0.6 --max-model-len 262144 \
-  --max-num-seqs 4 --max-num-batched-tokens 8192 \
-  --enable-chunked-prefill --async-scheduling --enable-prefix-caching \
-  --load-format fastsafetensors
-```
-
-Notes for repeating it:
-
-- **The model names look odd but are real**: this setup is from Oct 2026,
-  when `unsloth/Qwen3.8-27B-NVFP4` and `nvidia/Qwen3.6-35B-A3B-NVFP4`
-  were current NVFP4 builds for Spark. On a fresh machine, any NVFP4 model
-  that fits 128 GB unified memory works — the client code does not care
-  which model is answering, only that OpenClaw has a working model provider.
-- **OpenClaw model wiring**: `~/.openclaw/openclaw.json` → `models.providers`
-  with one provider per vLLM endpoint (`baseUrl`, `api: openai-completions`,
-  `contextWindow`/`maxTokens`), then `agents.defaults.model.primary` picks
-  the model id (`vllm/<model>`). Both providers are multimodal (text+image)
-  — the webcam verification loop (photo → model inspects → adjust → repeat)
-  is what makes the calibration work, so keep a vision-capable model.
-- **The second model is optional**: one local NVFP4 vLLM endpoint is
-  enough; the two-provider setup just gives a fallback. Anything OpenAI-
-  compatible (vLLM, llama.cpp, Ollama) works as the provider.
-- **No cloud**: both models are local/self-hosted; nothing in this setup
-  phones home. Tailscale is only used to reach the second box on the LAN.
+Everything in this repo was developed, driven, and verified by the OpenClaw
+agent **homeBot** on an **NVIDIA DGX Spark** — the agent wrote the client,
+calibrated the strip with a webcam, ran the ambient services, and captured
+every photo/GIF here. To repeat the whole setup on another Spark (same
+OpenClaw version, same models, same agent loop) see
+**[SETUP.md](SETUP.md)** — the exact environment, OpenClaw model wiring, and
+the local vLLM serve command.
 
 ## Install
 
@@ -427,9 +402,7 @@ st.custom("my-scene", 90, ends, states)
 practical rate is **~5–6 updates/sec** with time-locked pacing. Smooth
 flowing gradients are not achievable on this hardware; calm,
 slowly-changing ambient content (screen-sync ambilight, GPU-state
-gradients, the `demos/`) works beautifully. Smooth flowing gradients are not achievable on this hardware;
-calm, slowly-changing ambient content (screen-sync ambilight, GPU-state
-gradients) works beautifully.
+gradients, the `demos/`) works beautifully.
 
 ## Method names are snake_case
 
